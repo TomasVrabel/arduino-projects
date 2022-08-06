@@ -44,3 +44,16 @@ void BT_printTime(RTCDateTime dt) {
   if (dt.second < 10) bt.print("0");
   bt.print(dt.second);
 }
+
+void BT_printCurrentMeasurement(String caption, measurement *m) {
+  m->to = GetCurrentMins();
+  BT_printMeasurement(caption, m);
+}
+
+void BT_printMeasurement(String caption, measurement *m) {
+  bt.print(caption);
+  BT_printNextSchedule(m->from); 
+  bt.print(F("  "));
+  bt.print(m->to - m->from); bt.print("m ");
+  bt.print(m->volume/1000); bt.println("l");
+}

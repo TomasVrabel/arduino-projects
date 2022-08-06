@@ -16,6 +16,12 @@
 #include <DS3231.h>
 #include <RCSwitch.h>
 
+typedef struct {
+  uint32_t from;
+  uint32_t to;
+  unsigned int volume; // in ml
+} measurement;
+
 SoftwareSerial bt(TX, RX);
 RCSwitch socket = RCSwitch();
 DS3231 rtc;
@@ -67,7 +73,7 @@ void loop() {
 
     // mine: 198 Hz (Q – 30 l/min), 99 Hz (Q – 15 l/min), 33 Hz (Q – 5 l/min); F = 6,6 * Q;   396 pulzu / litr
     flow = (pulseCount * (float) 60000) / (396 * (millis() - oldTime));
-    flowML = (pulseCount * 1000) / 396;
+    flowML = (((uint32_t) pulseCount) * 1000) / 396;
     
     sumML += flowML;
     pulsesTotal += pulseCount;
@@ -98,8 +104,10 @@ void loop() {
         SendStatusBlueTooth();
         break;
       case 's':
+        SendInfoBlueTooth(false);
+        break;
       case 'S':
-        SendInfoBlueTooth();
+        SendInfoBlueTooth(true);
         break;
       case 'F':
         UpdateSynteticPulses(5);
