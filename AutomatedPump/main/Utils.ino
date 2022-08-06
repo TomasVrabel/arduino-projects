@@ -57,3 +57,11 @@ void BT_printMeasurement(String caption, measurement *m) {
   bt.print(m->to - m->from); bt.print("m ");
   bt.print(m->volume/1000); bt.println("l");
 }
+
+void EEPROM_LoadData() {
+  EEPROM.get(STORAGE_ADDRESS, storage );
+}
+
+void EEPROM_SaveData() {
+  EEPROM.put(STORAGE_ADDRESS, storage );
+}

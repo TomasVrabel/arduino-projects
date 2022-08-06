@@ -31,7 +31,8 @@ bool pumping = false;
 measurement current, history[MEASUREMENT_LIST_SIZE];
 measurement today, yesterday;
 
-unsigned long totalVolume; 
+unsigned long totalVolume;
+unsigned long totalMeasurements;
 
 byte historySize = 0;
 
@@ -74,6 +75,12 @@ void ProcessFlowData() {
 void InitController() {
   SetMode(MODE_REPEAT);
 
+  // load data from EEPROM
+  EEPROM_LoadData();
+  
+  totalVolume = storage.totalVolume;
+  totalMeasurements = storage.totalMeasurements;
+    
   // init daily measurements
   uint32_t noon = (GetCurrentMins()/DAY_MINUTES)*DAY_MINUTES;
   
@@ -84,9 +91,6 @@ void InitController() {
   yesterday.from = noon - DAY_MINUTES;
   yesterday.to = noon - 1;
   yesterday.volume = 0;
-
-  // load peristed data
-  // TBD
 }
 
 void SetMode(byte mode) {
@@ -177,9 +181,15 @@ void UpdateRepeatInterval(int delta) {
 
 void ProcessMeasurement(measurement *m) {
   totalVolume += m->volume;
+  totalMeasurements++;
+
+  storage.totalVolume = totalVolume;
+  storage.totalMeasurements = totalMeasurements;
+  EEPROM_SaveData();
   
   AddMeasurementToHistory(&current);
-  
+
+  // day change if measurement is in new day
   if (today.to < GetCurrentMins()) {
     uint32_t noon = GetNoonMins();
     
@@ -241,9 +251,16 @@ void SendStatusBlueTooth() {
   bt.print(F("RepeatIntervalMins: ")); bt.println(RepeatIntervalMins);
   bt.print(F("DelayStartPump: ")); bt.println(DelayStartPump);
   bt.print(F("SynteticPulses: ")); bt.println(SynteticPulses);
+
+  bt.print(F("storage.totalVolume: ")); bt.println(storage.totalVolume);
+  bt.print(F("storage.totalMeasurements: ")); bt.println(storage.totalMeasurements);
   
   bt.print(F("aboveThresholdMeasureTs: ")); bt.println(aboveThresholdMeasureTs/1000);
   bt.print(F("aboveThresholdTurnOffTs: ")); bt.println(aboveThresholdTurnOffTs/1000);
+  
+  bt.print(F("totalVolume: ")); bt.println(totalVolume);
+  bt.print(F("totalMeasurements: ")); bt.println(totalMeasurements);
+  
   bt.print(F("free memory: ")); bt.println(freeMemory());
 }
 

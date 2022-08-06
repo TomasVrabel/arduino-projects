@@ -9,18 +9,26 @@
 #define Socket_B_On "110011011110011010110100"
 #define Socker_B_Off "110011100000001000100100"
 
+#define STORAGE_ADDRESS 0x00
+
 //#define ENABLE_SYNTETIC_FLOW 1
 
 #include <Wire.h>
 #include <SoftwareSerial.h>
 #include <DS3231.h>
 #include <RCSwitch.h>
+#include <EEPROM.h>
 
 typedef struct {
   uint32_t from;
   uint32_t to;
   unsigned int volume; // in ml
 } measurement;
+
+struct storage_model {
+  unsigned long totalVolume; 
+  unsigned long totalMeasurements;
+} storage;
 
 SoftwareSerial bt(TX, RX);
 RCSwitch socket = RCSwitch();
@@ -120,6 +128,10 @@ void loop() {
         break;
       case 'r':
         UpdateRepeatInterval(-10);
+        break;
+      case 'X':
+        for(int i=0;i<sizeof(storage_model);i++) EEPROM.update(STORAGE_ADDRESS + i, 0);
+        bt.println("Storage reset");
         break;
       case 'b':
         // zde je ukázka načtení většího počtu informací,
