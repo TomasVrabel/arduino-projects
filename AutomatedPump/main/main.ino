@@ -22,7 +22,7 @@
 typedef struct {
   uint32_t from;
   uint32_t to;
-  unsigned int volume; // in ml
+  uint32_t volume; // in ml
 } measurement;
 
 struct storage_model {
@@ -37,6 +37,7 @@ DS3231 rtc;
 RTCDateTime dateTime;
 
 const float calibrationFactor = 3.96;
+const float correctionFactor = 1.5;
 
 volatile byte pulseCount = 0;
 float flow = 0.0;
@@ -71,6 +72,7 @@ void loop() {
   byte bluetoothData;
 
   if ((millis() - oldTime) > 1000) {
+
     dateTime = rtc.getDateTime();
     
     detachInterrupt(FLOWMETER_INTERRUPT_PIN);
@@ -80,8 +82,8 @@ void loop() {
 #endif
 
     // mine: 198 Hz (Q – 30 l/min), 99 Hz (Q – 15 l/min), 33 Hz (Q – 5 l/min); F = 6,6 * Q;   396 pulzu / litr
-    flow = (pulseCount * (float) 60000) / (396 * (millis() - oldTime));
-    flowML = (((uint32_t) pulseCount) * 1000) / 396;
+    flow = (pulseCount * correctionFactor * (float) 60000) / (396 * (millis() - oldTime));
+    flowML = (((uint32_t) (pulseCount * correctionFactor)) * 1000) / 396;
     
     sumML += flowML;
     pulsesTotal += pulseCount;
@@ -96,11 +98,11 @@ void loop() {
   if (bt.available() > 0) {
     // načtení prvního znaku ve frontě do proměnné
     bluetoothData=bt.read();
-  
+    
     // dekódování přijatého znaku
     switch (bluetoothData) {
       case '0':
-        Manual_Off();
+        Manual_Off();  
         break;
       case '1':
         Manual_On();

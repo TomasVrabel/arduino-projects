@@ -15,11 +15,11 @@ byte Mode = 0;
 byte ThresholdMeasureStart = 2; // measure when flow is above 1 l/min
 byte ThresholdMeasureStop = 1; // stop measure when flow is below 1 l/min
 
-byte ThresholdTurnOff = 1; // turn off when flow below 3 l/min  
+byte ThresholdTurnOff = 5; // turn off when flow below 5 l/min  
 byte TresholdTurnOffSeconds = 5; // turn off whjen flow is below ThresholdTurnOff for more then 5 seconds
 byte DelayStartPump = 5;  // (secs) when pump start this delay interval will postpone evaluation of TresholdTurnOffSeconds. Idea behind: it takes time for pump to trigger flow, longer than 5 sec..
 
-uint32_t RepeatIntervalMins = 60;
+uint32_t RepeatIntervalMins = 120;
 
 long aboveThresholdMeasureTs = 0;
 long aboveThresholdTurnOffTs = 0;
@@ -289,7 +289,7 @@ void SendInfoBlueTooth(bool full) {
   }
   
   if (pumping) {
-    bt.print(F("Prebieha cerpanie"));
+    bt.println(F("Prebieha cerpanie"));
   } else {
     if (Mode > MODE_MANUAL) {
       bt.print(F("Najblizsie cerpanie: ")); 
