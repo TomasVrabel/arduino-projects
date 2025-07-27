@@ -12,12 +12,12 @@
 
 byte Mode = 0;
 
-byte ThresholdMeasureStart = 2; // measure when flow is above 1 l/min
-byte ThresholdMeasureStop = 1; // stop measure when flow is below 1 l/min
+byte ThresholdMeasureStart = 5; // measure when flow is above this value (in l/min)
+byte ThresholdMeasureStop = 2; // stop measure when flow is below in this valie (in l/min)
 
-byte ThresholdTurnOff = 5; // turn off when flow below 5 l/min  
-byte TresholdTurnOffSeconds = 5; // turn off whjen flow is below ThresholdTurnOff for more then 5 seconds
-byte DelayStartPump = 5;  // (secs) when pump start this delay interval will postpone evaluation of TresholdTurnOffSeconds. Idea behind: it takes time for pump to trigger flow, longer than 5 sec..
+byte ThresholdTurnOff = 10; // turn off when flow below this value (in l/min) 
+byte TresholdTurnOffSeconds = 3; // turn off when flow is below ThresholdTurnOff for more this value (in seconds)
+long DelayStartPump = 0;  // (in seconds) when pump start this delay interval will postpone evaluation of TresholdTurnOffSeconds. Idea behind: it takes time for pump to trigger flow, longer than 5 sec..
 
 uint32_t RepeatIntervalMins = 120;
 

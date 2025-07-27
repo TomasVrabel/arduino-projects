@@ -36,17 +36,30 @@ DS3231 rtc;
 
 RTCDateTime dateTime;
 
-const float calibrationFactor = 3.96;
-const float correctionFactor = 1.5;
+const float pulseFormula_coefficient = 8.0;
+const float pulseFormula_offset = 4.0;
 
 volatile byte pulseCount = 0;
-float flow = 0.0;
-unsigned int flowML = 0;
-unsigned long sumML = 0;
+float flow = 0.0;             // in liter/minute
+unsigned int flowML = 0;      // in militers
+unsigned long sumML = 0;      // in mililiters
 unsigned long oldTime = 0;
 unsigned long pulsesTotal = 0;
 
 int SynteticPulses = 0;
+
+// Calculate volume that flow in this loop.
+// Formula for pulse meter: F = pulseFormula_coefficient * Q - pulseFormula_offset
+// Other parameters: pulseFormula_coefficient=a, pulseFormula_offset=b, loopMillis=L, loopPulses=P, flow in loop = Vml
+// 
+// Formula derived by Gemini AI: Vml = (1000P+bL)/(60a)
+// AI Prompt: 
+//   You are math expert. Flow pulse meter is characterized by formula F = a* Q - b, where a and b are constants. F is frequency in Hertz, Q is flow in liters per minute.
+//   We can measure number of pulses P in time interval L (provided in milliseconds). 
+//   Provide formula for volume (in mililiters) in time interval L based on measures pulses and formula above.
+unsigned int GetLoopFlowML(unsigned long loopMillis, unsigned long  loopPulses) {
+  return (1000.0 * (float) loopPulses + pulseFormula_offset*loopMillis)/(60.0*pulseFormula_coefficient);
+}
 
 void setup() {
   Serial.begin(9600);
@@ -70,21 +83,22 @@ void setup() {
 
 void loop() {
   byte bluetoothData;
+  unsigned long loopTime = millis() - oldTime;
 
-  if ((millis() - oldTime) > 1000) {
+  if (loopTime > 500) {
+    detachInterrupt(FLOWMETER_INTERRUPT_PIN);
+
+    // reevaluate loop-time
+    loopTime = millis() - oldTime;
 
     dateTime = rtc.getDateTime();
-    
-    detachInterrupt(FLOWMETER_INTERRUPT_PIN);
 
 #ifdef ENABLE_SYNTETIC_FLOW
     pulseCount = SynteticPulses;
 #endif
 
-    // mine: 198 Hz (Q – 30 l/min), 99 Hz (Q – 15 l/min), 33 Hz (Q – 5 l/min); F = 6,6 * Q;   396 pulzu / litr
-    flow = (pulseCount * correctionFactor * (float) 60000) / (396 * (millis() - oldTime));
-    flowML = (((uint32_t) (pulseCount * correctionFactor)) * 1000) / 396;
-    
+    flowML = GetLoopFlowML(loopTime, pulseCount);
+    flow = ( (float) flowML * (60000.0 / (float) loopTime))/1000.0;    // from flowML in this loop calculate flow in liters/minute
     sumML += flowML;
     pulsesTotal += pulseCount;
 
