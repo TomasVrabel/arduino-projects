@@ -72,6 +72,9 @@ void setup() {
   
   rtc.begin();
 
+  // Set datetime as compiling time
+  rtc.setDateTime(__DATE__, __TIME__);
+
   pinMode(FLOWMETER_PIN, INPUT);
   attachInterrupt(FLOWMETER_INTERRUPT_PIN, addPulse, FALLING);
 
