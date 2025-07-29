@@ -9,8 +9,6 @@
 #define Socket_B_On "110011011110011010110100"
 #define Socker_B_Off "110011100000001000100100"
 
-#define STORAGE_ADDRESS 0x00
-
 //#define ENABLE_SYNTETIC_FLOW 1
 
 #include <Wire.h>
@@ -19,25 +17,36 @@
 #include <RCSwitch.h>
 #include <EEPROM.h>
 
+#define MODE_MEASURE 0
+#define MODE_MANUAL 1
+#define MODE_REPEAT 2
+
 typedef struct {
   uint32_t from;
   uint32_t to;
   uint32_t volume; // in ml
 } measurement;
 
-struct storage_model {
-  unsigned long totalVolume; 
-  unsigned long totalMeasurements;
-} storage;
+struct Config {
+  unsigned long tag;
+  float pulseFormula_coefficient;
+  float pulseFormula_offset;
+  byte ThresholdMeasureStart;
+  byte ThresholdMeasureStop;
+  byte Mode;
+  byte ThresholdTurnOff;
+  byte TresholdTurnOffSeconds;
+  long DelayStartPump;
+  uint32_t RepeatIntervalMins;
+};
+
+Config config;
 
 SoftwareSerial bt(TX, RX);
 RCSwitch socket = RCSwitch();
 DS3231 rtc;
 
 RTCDateTime dateTime;
-
-const float pulseFormula_coefficient = 8.0;
-const float pulseFormula_offset = 4.0;
 
 volatile byte pulseCount = 0;
 float flow = 0.0;             // in liter/minute
@@ -58,7 +67,7 @@ int SynteticPulses = 0;
 //   We can measure number of pulses P in time interval L (provided in milliseconds). 
 //   Provide formula for volume (in mililiters) in time interval L based on measures pulses and formula above.
 unsigned int GetLoopFlowML(unsigned long loopMillis, unsigned long  loopPulses) {
-  return (1000.0 * (float) loopPulses + pulseFormula_offset*loopMillis)/(60.0*pulseFormula_coefficient);
+  return (1000.0 * (float) loopPulses + config.pulseFormula_offset*loopMillis)/(60.0*config.pulseFormula_coefficient);
 }
 
 void setup() {
@@ -81,6 +90,7 @@ void setup() {
   // we need time already here so we can schedule pumping correctly
   dateTime = rtc.getDateTime();
   
+  loadConfiguration();
   InitController();
 }
 
@@ -113,69 +123,109 @@ void loop() {
   }
   
   if (bt.available() > 0) {
-    // načtení prvního znaku ve frontě do proměnné
-    bluetoothData=bt.read();
-    
-    // dekódování přijatého znaku
-    switch (bluetoothData) {
-      case '0':
-        Manual_Off();  
-        break;
-      case '1':
-        Manual_On();
-        break;
-      case 'm':
-        SwitchMode();
-        break;
-      case 'a':
-        SendStatusBlueTooth();
-        break;
-      case 's':
-        SendInfoBlueTooth(false);
-        break;
-      case 'S':
-        SendInfoBlueTooth(true);
-        break;
-      case 'F':
-        UpdateSynteticPulses(5);
-        break;
-      case 'f':
-        UpdateSynteticPulses(-5);
-        break;
-      case 'R':
-        UpdateRepeatInterval(10);
-        break;
-      case 'r':
-        UpdateRepeatInterval(-10);
-        break;
-      case 'X':
-        for(int i=0;i<sizeof(storage_model);i++) EEPROM.update(STORAGE_ADDRESS + i, 0);
-        bt.println("Storage reset");
-        break;
-      case 'b':
-        // zde je ukázka načtení většího počtu informací,
-        // po přijetí znaku 'b' tedy postupně tiskneme 
-        // další znaky poslané ve zprávě
-        bt.print(F("Nacitam zpravu: "));
-        bluetoothData=bt.read();
-        // v této smyčce zůstáváme do té doby,
-        // dokud jsou nějaké znaky ve frontě
-        while (bt.available() > 0) {
-          bt.write(bluetoothData);
-          // krátká pauza mezi načítáním znaků
-          delay(10);
-          bluetoothData=bt.read();
+    String command = bt.readStringUntil('\n');
+    command.trim();
+
+    if (command.startsWith("Set")) {
+      int firstSpace = command.indexOf(' ');
+      int secondSpace = command.indexOf(' ', firstSpace + 1);
+      if (firstSpace > 0 && secondSpace > 0) {
+        int slot = command.substring(firstSpace + 1, secondSpace).toInt();
+        float value = command.substring(secondSpace + 1).toFloat();
+        
+        switch (slot) {
+          case 1:
+            config.pulseFormula_coefficient = value;
+            bt.print(F("New pulseFormula_coefficient: "));
+            bt.println(config.pulseFormula_coefficient);
+            break;
+          case 2:
+            config.pulseFormula_offset = value;
+            bt.print(F("New pulseFormula_offset: "));
+            bt.println(config.pulseFormula_offset);
+            break;
+          case 3:
+            config.ThresholdMeasureStart = (byte)value;
+            bt.print(F("New ThresholdMeasureStart: "));
+            bt.println(config.ThresholdMeasureStart);
+            break;
+          case 4:
+            config.ThresholdMeasureStop = (byte)value;
+            bt.print(F("New ThresholdMeasureStop: "));
+            bt.println(config.ThresholdMeasureStop);
+            break;
+          case 5:
+            config.Mode = (byte)value;
+            bt.print(F("New Mode: "));
+            bt.println(config.Mode);
+            break;
+          case 6:
+            config.ThresholdTurnOff = (byte)value;
+            bt.print(F("New ThresholdTurnOff: "));
+            bt.println(config.ThresholdTurnOff);
+            break;
+          case 7:
+            config.TresholdTurnOffSeconds = (byte)value;
+            bt.print(F("New TresholdTurnOffSeconds: "));
+            bt.println(config.TresholdTurnOffSeconds);
+            break;
+          case 8:
+            config.DelayStartPump = (long)value;
+            bt.print(F("New DelayStartPump: "));
+            bt.println(config.DelayStartPump);
+            break;
+          case 9:
+            config.RepeatIntervalMins = (uint32_t)value;
+            bt.print(F("New RepeatIntervalMins: "));
+            bt.println(config.RepeatIntervalMins);
+            break;
+          default:
+            bt.print(F("Unknown slot: "));
+            bt.println(slot);
         }
-        bt.println();
-        break;
-      case '\r':
-        // přesun na začátek řádku - znak CR
-        break;
-      case '\n':
-        // odřádkování - znak LF
-        break;
-      default:
-        bt.print(F("Unknown commamd: ")); bt.println(bluetoothData);
+      } else {
+        bt.println(F("Invalid Set command format."));
+      }
+    } else {
+      switch (command.charAt(0)) {
+        case '0':
+          Manual_Off();  
+          break;
+        case '1':
+          Manual_On();
+          break;
+        case 'm':
+          SwitchMode();
+          break;
+        case 'a':
+          SendStatusBlueTooth();
+          break;
+        case 's':
+          SendInfoBlueTooth(false);
+          break;
+        case 'S':
+          SendInfoBlueTooth(true);
+          break;
+        case 'F':
+          UpdateSynteticPulses(5);
+          break;
+        case 'f':
+          UpdateSynteticPulses(-5);
+          break;
+        case 'R':
+          UpdateRepeatInterval(10);
+          break;
+        case 'r':
+          UpdateRepeatInterval(-10);
+          break;
+        case 'X':
+          saveConfiguration();
+          bt.println("Configuration saved.");
+          break;
+        default:
+          bt.print(F("Unknown command: "));
+          bt.println(command);
+      }
     }
   }
   
