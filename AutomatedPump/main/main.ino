@@ -179,6 +179,24 @@ void loop() {
             bt.print(F("New RepeatIntervalMins: "));
             bt.println(config.RepeatIntervalMins);
             break;
+          case 100:
+            {
+              uint16_t timeVal = (uint16_t)value;
+              uint16_t hours = timeVal / 100;
+              uint16_t minutes = timeVal % 100;
+              if (hours <= 23 && minutes <= 59) {
+                nextScheduleMins = GetNoonMins() + hours * 60 + minutes;
+                if (nextScheduleMins < GetCurrentMins()) {
+                  nextScheduleMins += DAY_MINUTES;
+                }
+                bt.print(F("New next schedule: "));
+                BT_printNextSchedule(nextScheduleMins);
+                bt.println();
+              } else {
+                bt.println(F("Invalid time format for slot 100. Use HHmm."));
+              }
+            }
+            break;
           default:
             bt.print(F("Unknown slot: "));
             bt.println(slot);
