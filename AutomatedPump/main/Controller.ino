@@ -195,6 +195,20 @@ uint32_t GetNoonMins() {
   return (GetCurrentMins()/DAY_MINUTES)*DAY_MINUTES;
 }
 
+void UpdateSchedule(int hours, int minutes) {
+   if (hours <= 23 && minutes <= 59) {
+    nextScheduleMins = GetNoonMins() + hours * 60 + minutes;
+    if (nextScheduleMins < GetCurrentMins()) {
+      nextScheduleMins += DAY_MINUTES;
+    }
+    bt.print(F("New next schedule: "));
+    BT_printNextSchedule(nextScheduleMins);
+    bt.println();
+  } else {
+    bt.println(F("Invalid time format for slot 100. Use HHmm."));
+  }
+}
+
 
 void SendStatusBlueTooth() {
   // TBD: lot of stuff to send on blueetooth

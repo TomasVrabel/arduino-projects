@@ -81,7 +81,7 @@ void setup() {
   
   rtc.begin();
 
-  // Set datetime as compiling time
+  // Set datetime as compiling time, this is static and should be applied only during code upload
   rtc.setDateTime(__DATE__, __TIME__);
 
   pinMode(FLOWMETER_PIN, INPUT);
@@ -181,20 +181,10 @@ void loop() {
             break;
           case 100:
             {
-              uint16_t timeVal = (uint16_t)value;
-              uint16_t hours = timeVal / 100;
-              uint16_t minutes = timeVal % 100;
-              if (hours <= 23 && minutes <= 59) {
-                nextScheduleMins = GetNoonMins() + hours * 60 + minutes;
-                if (nextScheduleMins < GetCurrentMins()) {
-                  nextScheduleMins += DAY_MINUTES;
-                }
-                bt.print(F("New next schedule: "));
-                BT_printNextSchedule(nextScheduleMins);
-                bt.println();
-              } else {
-                bt.println(F("Invalid time format for slot 100. Use HHmm."));
-              }
+              int timeVal = (int)value;
+              int hours = timeVal / 100;
+              int minutes = timeVal % 100;
+              UpdateSchedule(hours, minutes);
             }
             break;
           default:
