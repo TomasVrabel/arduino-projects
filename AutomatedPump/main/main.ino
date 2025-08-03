@@ -82,7 +82,7 @@ void setup() {
   rtc.begin();
 
   // Set datetime as compiling time, this is static and should be applied only during code upload
-  rtc.setDateTime(__DATE__, __TIME__);
+  //rtc.setDateTime(__DATE__, __TIME__);
 
   pinMode(FLOWMETER_PIN, INPUT);
   attachInterrupt(FLOWMETER_INTERRUPT_PIN, addPulse, FALLING);
