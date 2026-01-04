@@ -1,25 +1,9 @@
-
-#define MODE_MEASURE 0
-#define MODE_MANUAL 1
-#define MODE_REPEAT 2
-
 #define MODES_COUNT 3
 
 #define MEASUREMENT_LIST_SIZE 5
 
 #define DAY_MINUTES 1440
 #define TIMEZONE_COMPENSATION 60  // library has bug/feature, unixtime is in UTC so we need to add 1 hour
-
-byte Mode = 0;
-
-byte ThresholdMeasureStart = 2; // measure when flow is above 1 l/min
-byte ThresholdMeasureStop = 1; // stop measure when flow is below 1 l/min
-
-byte ThresholdTurnOff = 5; // turn off when flow below 5 l/min  
-byte TresholdTurnOffSeconds = 5; // turn off whjen flow is below ThresholdTurnOff for more then 5 seconds
-byte DelayStartPump = 5;  // (secs) when pump start this delay interval will postpone evaluation of TresholdTurnOffSeconds. Idea behind: it takes time for pump to trigger flow, longer than 5 sec..
-
-uint32_t RepeatIntervalMins = 120;
 
 long aboveThresholdMeasureTs = 0;
 long aboveThresholdTurnOffTs = 0;
@@ -38,17 +22,17 @@ byte historySize = 0;
 
 void ProcessFlowData() {
   long ts = millis();
-  if (flow > ThresholdMeasureStop)  aboveThresholdMeasureTs = ts;
-  if (flow > ThresholdTurnOff)  aboveThresholdTurnOffTs = ts;
+  if (flow > config.ThresholdMeasureStop)  aboveThresholdMeasureTs = ts;
+  if (flow > config.ThresholdTurnOff)  aboveThresholdTurnOffTs = ts;
 
-  if (pumping && Mode > MODE_MEASURE && (ts - aboveThresholdTurnOffTs) > (long) TresholdTurnOffSeconds * 1000) { 
+  if (pumping && config.Mode > MODE_MEASURE && (ts - aboveThresholdTurnOffTs) > (long) config.TresholdTurnOffSeconds * 1000) { 
     bt.println(F("Nizky prietok pri pustenom cerpadle, zastavujem cerpadlo!"));
     StopPump();
   }
   
   CheckSchedule();
   
-  if (measuring && ThresholdMeasureStop > flow) { 
+  if (measuring && config.ThresholdMeasureStop > flow) { 
     // finish measurement
     bt.println(F("Meranie zastavene, nizky prietok."));
 
@@ -58,7 +42,7 @@ void ProcessFlowData() {
     
     measuring = false;
  
-  } else if (!measuring && ThresholdMeasureStart < flow)  {
+  } else if (!measuring && config.ThresholdMeasureStart < flow)  {
     // start measure
     bt.println(F("Zacinam meranie, zisteni vyssi prietok."));
     
@@ -73,13 +57,7 @@ void ProcessFlowData() {
 }
 
 void InitController() {
-  SetMode(MODE_REPEAT);
-
-  // load data from EEPROM
-  EEPROM_LoadData();
-  
-  totalVolume = storage.totalVolume;
-  totalMeasurements = storage.totalMeasurements;
+  SetMode(config.Mode);
     
   // init daily measurements
   uint32_t noon = (GetCurrentMins()/DAY_MINUTES)*DAY_MINUTES;
@@ -94,12 +72,12 @@ void InitController() {
 }
 
 void SetMode(byte mode) {
-  Mode = mode % MODES_COUNT;
+  config.Mode = mode % MODES_COUNT;
   
-  bt.print(F("Zmena rezimu, novy rezim: ")); bt.println(Mode);
+  bt.print(F("Zmena rezimu, novy rezim: ")); bt.println(config.Mode);
 
   // init mode
-  switch(Mode) {
+  switch(config.Mode) {
     case MODE_REPEAT:
       // we need to schedule new pump from current, not from existing schedule (that can be in the future)
       nextScheduleMins = GetCurrentMins();
@@ -111,18 +89,18 @@ void SetMode(byte mode) {
 }
 
 void SwitchMode() {
-  SetMode(Mode+1);
+  SetMode(config.Mode+1);
 }
 
 void ScheduleNextIteration() {
-  if (Mode == MODE_MEASURE || Mode == MODE_MANUAL) return;
-  if (Mode == MODE_REPEAT) {
+  if (config.Mode == MODE_MEASURE || config.Mode == MODE_MANUAL) return;
+  if (config.Mode == MODE_REPEAT) {
       // we are scheduling next pump based on last schedule BUT if last schedule is far in past we will schedule from current time
-      while ((nextScheduleMins + RepeatIntervalMins) < GetCurrentMins()) {
-        nextScheduleMins += RepeatIntervalMins;
+      while ((nextScheduleMins + config.RepeatIntervalMins) < GetCurrentMins()) {
+        nextScheduleMins += config.RepeatIntervalMins;
       }
         
-      nextScheduleMins = nextScheduleMins + RepeatIntervalMins;
+      nextScheduleMins = nextScheduleMins + config.RepeatIntervalMins;
   }
 }
 
@@ -131,7 +109,7 @@ void StartPump() {
    
   Socket_On(); 
   pumping = true;
-  aboveThresholdTurnOffTs = millis() + DelayStartPump * 1000;
+  aboveThresholdTurnOffTs = millis() + config.DelayStartPump * 1000;
 }
 
 void StopPump() {
@@ -150,7 +128,7 @@ void CheckSchedule() {
   // do not check schedule while pumping
   if (pumping) return;
   
-  if( Mode == MODE_REPEAT && nextScheduleMins <= GetCurrentMins()) {
+  if( config.Mode == MODE_REPEAT && nextScheduleMins <= GetCurrentMins()) {
     bt.print("Nastal planovany cas cerpania: "); BT_printNextSchedule(nextScheduleMins); bt.println();
     StartPump();
   } 
@@ -161,7 +139,7 @@ void Manual_Off() {
 }
 
 void Manual_On() {
-  if (Mode == MODE_MEASURE) {
+  if (config.Mode == MODE_MEASURE) {
     bt.println(F("Spustit cerpadlo v rezime MERANIE nie je povolene"));
     return;
   }
@@ -172,20 +150,16 @@ void Manual_On() {
 }
 
 void UpdateRepeatInterval(int delta) {
-  uint32_t p = RepeatIntervalMins + delta;
+  uint32_t p = config.RepeatIntervalMins + delta;
   if (p > 0 && p < 600)
-    RepeatIntervalMins = p;
+    config.RepeatIntervalMins = p;
   bt.print(F("Novy interval spustania cerpadla (min): "));
-  bt.println(RepeatIntervalMins);
+  bt.println(config.RepeatIntervalMins);
 }
 
 void ProcessMeasurement(measurement *m) {
   totalVolume += m->volume;
   totalMeasurements++;
-
-  storage.totalVolume = totalVolume;
-  storage.totalMeasurements = totalMeasurements;
-  EEPROM_SaveData();
   
   AddMeasurementToHistory(&current);
 
@@ -221,6 +195,20 @@ uint32_t GetNoonMins() {
   return (GetCurrentMins()/DAY_MINUTES)*DAY_MINUTES;
 }
 
+void UpdateSchedule(int hours, int minutes) {
+   if (hours <= 23 && minutes <= 59) {
+    nextScheduleMins = GetNoonMins() + hours * 60 + minutes;
+    if (nextScheduleMins < GetCurrentMins()) {
+      nextScheduleMins += DAY_MINUTES;
+    }
+    bt.print(F("New next schedule: "));
+    BT_printNextSchedule(nextScheduleMins);
+    bt.println();
+  } else {
+    bt.println(F("Invalid time format for slot 100. Use HHmm."));
+  }
+}
+
 
 void SendStatusBlueTooth() {
   // TBD: lot of stuff to send on blueetooth
@@ -230,7 +218,7 @@ void SendStatusBlueTooth() {
   bt.print(F("getCurrentMins: ")); bt.println(GetCurrentMins());
   bt.print(F("getCurrentMins (formatted): ")); BT_printNextSchedule(GetCurrentMins()); bt.println();
     
-  bt.print(F("mode: ")); bt.println(Mode);
+  bt.print(F("mode: ")); bt.println(config.Mode);
   bt.print(F("next schedule: ")); BT_printNextSchedule(nextScheduleMins); bt.println();
 
   bt.print(F("flow: ")); bt.println(String(flow) + " l/min");
@@ -244,22 +232,22 @@ void SendStatusBlueTooth() {
   bt.print(F("currentMeasurement.from: ")); BT_printNextSchedule(current.from); bt.println();
   bt.print(F("currentMeasurement.volume: ")); bt.print(current.volume); bt.println(F(" ml"));
   
-  bt.print(F("ThresholdMeasureStart: ")); bt.println(ThresholdMeasureStart);
-  bt.print(F("ThresholdMeasureStop: ")); bt.println(ThresholdMeasureStop);
-  bt.print(F("ThresholdTurnOff: ")); bt.println(ThresholdTurnOff);
-  bt.print(F("TresholdTurnOffSeconds: ")); bt.println(TresholdTurnOffSeconds);
-  bt.print(F("RepeatIntervalMins: ")); bt.println(RepeatIntervalMins);
-  bt.print(F("DelayStartPump: ")); bt.println(DelayStartPump);
+  bt.print(F("ThresholdMeasureStart: ")); bt.println(config.ThresholdMeasureStart);
+  bt.print(F("ThresholdMeasureStop: ")); bt.println(config.ThresholdMeasureStop);
+  bt.print(F("ThresholdTurnOff: ")); bt.println(config.ThresholdTurnOff);
+  bt.print(F("TresholdTurnOffSeconds: ")); bt.println(config.TresholdTurnOffSeconds);
+  bt.print(F("RepeatIntervalMins: ")); bt.println(config.RepeatIntervalMins);
+  bt.print(F("DelayStartPump: ")); bt.println(config.DelayStartPump);
   bt.print(F("SynteticPulses: ")); bt.println(SynteticPulses);
-
-  bt.print(F("storage.totalVolume: ")); bt.println(storage.totalVolume);
-  bt.print(F("storage.totalMeasurements: ")); bt.println(storage.totalMeasurements);
   
+  bt.print(F("pulseFormula_coefficient: ")); bt.println(config.pulseFormula_coefficient);
+  bt.print(F("pulseFormula_offset: ")); bt.println(config.pulseFormula_offset);
+
   bt.print(F("aboveThresholdMeasureTs: ")); bt.println(aboveThresholdMeasureTs/1000);
   bt.print(F("aboveThresholdTurnOffTs: ")); bt.println(aboveThresholdTurnOffTs/1000);
   
-  bt.print(F("totalVolume: ")); bt.println(totalVolume);
-  bt.print(F("totalMeasurements: ")); bt.println(totalMeasurements);
+  bt.print(F("totalVolume (since start): ")); bt.println(totalVolume);
+  bt.print(F("totalMeasurements (since start): ")); bt.println(totalMeasurements);
   
   bt.print(F("free memory: ")); bt.println(freeMemory());
 }
@@ -268,7 +256,7 @@ void SendInfoBlueTooth(bool full) {
   bt.print(F("Cas: ")); BT_printTime(dateTime); bt.println();
   
   bt.print(F("Rezim: "));
-  switch(Mode) {
+  switch(config.Mode) {
     case MODE_MEASURE:
       bt.println(F("Meranie"));
       break;
@@ -276,7 +264,7 @@ void SendInfoBlueTooth(bool full) {
       bt.println(F("Manual"));
       break; 
     case MODE_REPEAT:
-      bt.print(F("Auto (")); bt.print(RepeatIntervalMins); bt.println(F(" m)"));
+      bt.print(F("Auto (")); bt.print(config.RepeatIntervalMins); bt.println(F(" m)"));
       break;     
   }
   
@@ -291,7 +279,7 @@ void SendInfoBlueTooth(bool full) {
   if (pumping) {
     bt.println(F("Prebieha cerpanie"));
   } else {
-    if (Mode > MODE_MANUAL) {
+    if (config.Mode > MODE_MANUAL) {
       bt.print(F("Najblizsie cerpanie: ")); 
       BT_printNextSchedule(nextScheduleMins); 
       bt.println();
