@@ -6,8 +6,8 @@
 #define FLOWMETER_PIN 2
 #define FLOWMETER_INTERRUPT_PIN 0 // 0 = digitální pin 2
 
-#define Socket_B_On "110011011110011010110100"
-#define Socker_B_Off "110011100000001000100100"
+#define Socket_B_On  "110011011110011010110100"
+#define Socket_B_Off "110011100000001000100100"
 
 //#define ENABLE_SYNTETIC_FLOW 1
 
@@ -81,7 +81,8 @@ void setup() {
   
   rtc.begin();
 
-  // Set datetime as compiling time, this is static and should be applied only during code upload
+  // Set datetime as compiling time, this is static and should be applied only during code upload.
+  // fix: support for code that is executed only during upload can be done using version tag (e.g. compile-time timstamp) and EEPROM peristance
   //rtc.setDateTime(__DATE__, __TIME__);
 
   pinMode(FLOWMETER_PIN, INPUT);
@@ -185,6 +186,39 @@ void loop() {
               int hours = timeVal / 100;
               int minutes = timeVal % 100;
               UpdateSchedule(hours, minutes);
+            }
+            break;
+          case 900:
+            {
+              String timestamp = command.substring(secondSpace + 1);
+              if (timestamp.length() == 12) {
+                int year = timestamp.substring(0, 4).toInt();
+                int month = timestamp.substring(4, 6).toInt();
+                int day = timestamp.substring(6, 8).toInt();
+                int hour = timestamp.substring(8, 10).toInt();
+                int minute = timestamp.substring(10, 12).toInt();
+                int second = 0;
+
+                if (month >= 1 && month <= 12) {
+                  const char* monthNames[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                  char dateStr[12];
+                  char timeStr[9];
+                  
+                  sprintf(dateStr, "%s %02d %04d", monthNames[month - 1], day, year);
+                  sprintf(timeStr, "%02d:%02d:%02d", hour, minute, second);
+                  
+                  rtc.setDateTime(dateStr, timeStr);
+                  
+                  bt.print(F("New Date/Time set: "));
+                  bt.print(dateStr);
+                  bt.print(F(" "));
+                  bt.println(timeStr);
+                } else {
+                  bt.println(F("Invalid month."));
+                }
+              } else {
+                bt.println(F("Invalid timestamp length. Use yyyyMMddhhmm."));
+              }
             }
             break;
           default:

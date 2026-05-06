@@ -5,7 +5,7 @@ void Socket_On() {
 }
 
 void Socket_Off() {
-  socket.send(Socker_B_Off);
+  socket.send(Socket_B_Off);
   bt.println(F("ZASUVKA VYPNUTA"));
 }
 
